@@ -176,7 +176,7 @@ program
     .option('-o, --output <file>', `Full or relative path where the created SubRip Subtitle (.srt) file should be written.
         By default, it will be saved in the same directory as the input video file.`, assertFileExtension('.srt'))
     .option('-t, --teleprompt <file>', `Full or relative path to teleprompter text (.txt) file.
-        If not provided, transcription will not be fixed.`, assertFileExtension('.txt'))
+        If not provided, transcription will not be corrected.`, assertFileExtension('.txt'))
     .option('-l, --locale <string>', 'Locale that will be used to transcribe the video (default: en-US).', 'en-US')
     .action((inputFile, options) => {
     const absoluteInputFile = path__namespace.resolve(inputFile);

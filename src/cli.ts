@@ -31,7 +31,7 @@ program
         assertFileExtension('.srt'))
     .option('-t, --teleprompt <file>',
         `Full or relative path to teleprompter text (.txt) file.
-        If not provided, transcription will not be fixed.`,
+        If not provided, transcription will not be corrected.`,
         assertFileExtension('.txt'))
     .option('-l, --locale <string>',
         'Locale that will be used to transcribe the video (default: en-US).',
