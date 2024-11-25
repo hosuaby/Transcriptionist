@@ -1,5 +1,7 @@
 # Transcriptionist
 
+[![npm](https://img.shields.io/npm/v/transcriptionist.svg)](http://npm.im/transcriptionist) 
+
 <p align="center">
     <img src="./docs/transcriptionist.webp"/>
 </p>
