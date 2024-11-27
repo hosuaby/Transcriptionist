@@ -4,21 +4,6 @@ import {DeepgramWord} from './transcriber';
 
 type Token = DeepgramWord | string;
 
-function isDeepgramWord(token: Token): token is DeepgramWord {
-    return (token as DeepgramWord).word !== undefined;
-}
-
-interface Segment {
-    removed: DeepgramWord[] | null,
-    inserted: Token[],
-}
-
-interface NormalizedSegment {
-    removed: DeepgramWord[] | null,
-    inserted: DeepgramWord[],
-    needAdjustment: boolean;    // need to adjust the start and end of words
-}
-
 function normalizeWord(word: string): string {
     return word
         .normalize('NFD')                   // decomposes the letters and diacritics.
@@ -73,165 +58,93 @@ export class Corrector {
         console.log(`Similarity: ${similarity}%`);
 
         const patch = diff.getPatch(transcribedWords as Token[], this.teleprompterTokens as Token[], compare);
-        return Corrector.applyPatch(transcribedWords, patch);
+        const patched: Token[] = diff.applyPatch(transcribedWords as Token[], patch);
+
+        const avgWordDuration = avgWordDurationSec(transcribedWords);
+        return Corrector.ajustDurationOfInsertedWords(patched, avgWordDuration);
     }
 
-    private static applyPatch(transcribedWords: DeepgramWord[], patch: diff.Patch<Token>): DeepgramWord[] {
-        const segments = Corrector
-            .buildSegments(transcribedWords, patch)
-            .map(Corrector.normalizeSegment);
-        const avgWordDuration = avgWordDurationSec(transcribedWords);
-        const res: DeepgramWord[] = [];
+    private static ajustDurationOfInsertedWords(patchedTokens: Token[], avgWordDuration: number): DeepgramWord[] {
+        const result: DeepgramWord[] = [];
 
-        for (let i = 0; i < segments.length; i++) {
-            const segment = segments[i];
+        let segmentStart: number | null = null;
+        let segmentEnd: number | null = null;
 
-            if (!segment.needAdjustment) {
-                res.push(...segment.inserted);
-            } else if (transcribedWords.length) {
-                // Adjust the start and end of the words
+        for (let i = 0; i < patchedTokens.length; i++) {
+            if (typeof patchedTokens[i] === 'string' && segmentStart === null) {
+                // Beginning of adjusted segment
+                segmentStart = i;
+            } else if (typeof patchedTokens[i] != 'string' && segmentStart != null) {
+                // Adjusted segment finished
+                segmentEnd = i - 1;
+                const wordsToAdjust: string[] = patchedTokens.slice(segmentStart, i) as string[];
+                const currentToken = patchedTokens[i] as DeepgramWord;
 
-                let startOfSegment = 0;
-                let endOfSegment = 0;
-
-                if (i === 0) {
+                if (segmentStart === 0) {
                     // Inserted at the beginning of transcription
-                    const nextSegment = segments[i + 1];
-                    startOfSegment = Math.max(nextSegment.inserted[0].start - avgWordDuration * segment.inserted.length, 0);
-                    endOfSegment = nextSegment.inserted[0].start;
-                } else if (i === segments.length - 1) {
-                    // Appended in the end of transcription
-                    const precSegment = segments[i - 1];
-                    startOfSegment = precSegment.inserted[precSegment.inserted.length - 1].end;
-                    endOfSegment = avgWordDuration * segment.inserted.length;
+                    const nbInserted = segmentEnd - segmentStart + 1;
+                    const segmentDuration = nbInserted * avgWordDuration;
+                    const segmentStartTime = Math.max(currentToken.start - segmentDuration, 0);
+                    const segmentEndTime = currentToken.start;
+                    const adjustedWords = Corrector.adjustWords(wordsToAdjust, segmentStartTime, segmentEndTime);
+                    result.push(...adjustedWords);
                 } else {
                     // Insert in the middle of transcription
-                    const precSegment = segments[i - 1];
-                    const nextSegment = segments[i + 1];
-                    startOfSegment = precSegment.inserted[precSegment.inserted.length - 1].end;
-                    endOfSegment = nextSegment.inserted[0].start;
+                    const lastAsjustedWord = result.pop()!;
+                    const wordsToReadjust: string[] = [
+                        lastAsjustedWord.punctuated_word || lastAsjustedWord.word,
+                        ...wordsToAdjust,
+                        currentToken.punctuated_word || currentToken.word
+                    ];
+                    const segmentStartTime = lastAsjustedWord.start
+                    const segmentEndTime = currentToken.end;
+                    const adjustedWords = Corrector.adjustWords(wordsToReadjust, segmentStartTime, segmentEndTime);
+                    result.push(...adjustedWords);
                 }
 
-                const adjustedSegment = Corrector.adjustSegment(segment, startOfSegment, endOfSegment);
-                res.push(...adjustedSegment.inserted);
+                // Reset adjusted segment
+                segmentStart = null;
+                segmentEnd = null;
+
+                // Add current element to the result
+                result.push(patchedTokens[i] as DeepgramWord);
+            } else if (typeof patchedTokens[i] != 'string') {
+                // Add current element to the result
+                result.push(patchedTokens[i] as DeepgramWord);
             }
         }
 
-        return res;
+        if (segmentStart != null && result.length) {
+            // Insert in the end
+            const wordsToAdjust: string[] = patchedTokens.slice(segmentStart) as string[];
+            const lastAsjustedWord = result[result.length - 1];
+            const segmentStartTime = lastAsjustedWord.start;
+            const segmentEndTime = segmentStartTime + wordsToAdjust.length * avgWordDuration;
+            const adjustedWords = Corrector.adjustWords(wordsToAdjust, segmentStartTime, segmentEndTime);
+            result.push(...adjustedWords);
+        }
+
+        return result;
     }
 
-    private static buildSegments(transcribedWords: DeepgramWord[], patch: diff.Patch<Token>): Segment[] {
-        const segments: Segment[] = [];
+    private static adjustWords(words: string[], startTime: number, endTime: number): DeepgramWord[] {
+        const segmentDuration = endTime - startTime;
+        const durationPerInsertedWord = segmentDuration / words.length;
 
-        let sameStartAt = 0;
+        let time = startTime;
+        const adjustedWords: DeepgramWord[] = [];
 
-        for (const patchItem of patch) {
-            if (sameStartAt !== patchItem.oldPos) {
-                const preservedSlice = transcribedWords.slice(sameStartAt, patchItem.oldPos);
-                segments[sameStartAt] = {
-                    removed: null,
-                    inserted: preservedSlice,
-                };
-            }
-
-            if (patchItem.type === 'add') {
-                segments[patchItem.newPos] ||= {
-                    removed: null,
-                    inserted: [],
-                };
-                segments[patchItem.newPos].inserted = patchItem.items;
-
-                sameStartAt = patchItem.oldPos;
-            } else if (patchItem.items) {
-                // Replace items
-                sameStartAt = patchItem.oldPos + patchItem.items.length;
-                segments[patchItem.oldPos] ||= {
-                    removed: null,
-                    inserted: [],
-                };
-                segments[patchItem.oldPos].removed = patchItem.items as DeepgramWord[];
-            } else {
-                // Simply remove items
-                sameStartAt = patchItem.oldPos + (patchItem as unknown as { length: number }).length;
-            }
-        }
-
-        if (sameStartAt !== transcribedWords.length) {
-            const remainingSlice = transcribedWords.slice(sameStartAt);
-            segments[sameStartAt] = {
-                removed: null,
-                inserted: remainingSlice,
+        for (const word of words) {
+            const deepgramWord: DeepgramWord = {
+                word: word,
+                punctuated_word: word,
+                start: time,
+                end: (time += durationPerInsertedWord),
+                confidence: 1,
             };
+            adjustedWords.push(deepgramWord);
         }
 
-        return segments.filter(segment => segment != null);
-    }
-
-    private static normalizeSegment(segment: Segment): NormalizedSegment {
-        if (isDeepgramWord(segment.inserted[0])) {
-            // Inserted segments already contains Deepgram words. It's already normalized.
-            return segment as NormalizedSegment;
-        } else if (segment.removed != null) {
-            // It's a replacement, need to provide durations for inserted words.
-            const firstRemoved = segment.removed[0];
-            const lastRemoved = segment.removed[segment.removed.length - 1];
-            const startOfSegment = firstRemoved.start;
-            const endOfSegment = lastRemoved.end;
-
-            const normalizedSegment: NormalizedSegment = {
-                removed: segment.removed,
-                inserted: [],
-                needAdjustment: true,
-            }
-
-            for (const insertedWord of (segment.inserted as string[])) {
-                normalizedSegment.inserted.push({
-                    word: insertedWord,
-                    punctuated_word: insertedWord,
-                    start: 0,
-                    end: 0,
-                    confidence: 1,
-                });
-            }
-
-            return Corrector.adjustSegment(normalizedSegment, startOfSegment, endOfSegment);
-        } else {
-            // It's a pure insertion. Will need to adjust duration of words after.
-            const normalizedSegment: NormalizedSegment = {
-                removed: null,
-                inserted: [],
-                needAdjustment: true,
-            }
-
-            for (const insertedWord of (segment.inserted as string[])) {
-                normalizedSegment.inserted.push({
-                    word: insertedWord,
-                    punctuated_word: insertedWord,
-                    start: 0,
-                    end: 0,
-                    confidence: 1,
-                });
-            }
-
-            return normalizedSegment;
-        }
-    }
-
-    private static adjustSegment(normalizedSegment: NormalizedSegment,
-                                 startOfSegment: number,
-                                 endOfSegment: number): NormalizedSegment {
-        const segmentDuration = endOfSegment - startOfSegment;
-        const durationPerInsertedWord = segmentDuration / normalizedSegment.inserted.length;
-
-        let startTime = startOfSegment;
-
-        for (const insertedWord of normalizedSegment.inserted) {
-            insertedWord.start = startTime;
-            insertedWord.end = (startTime += durationPerInsertedWord);
-        }
-
-        normalizedSegment.needAdjustment = false;
-
-        return normalizedSegment;
+        return adjustedWords;
     }
 }
