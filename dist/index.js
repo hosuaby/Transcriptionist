@@ -130,17 +130,23 @@ var devDependencies = {
 	"@rollup/plugin-commonjs": "^28.0.1",
 	"@rollup/plugin-json": "^6.1.0",
 	"@rollup/plugin-node-resolve": "^15.3.0",
+	"@types/chai": "^5.0.1",
 	"@types/chalk": "^2.2.4",
 	"@types/fluent-ffmpeg": "^2.1.27",
 	"@types/luxon": "^3.4.2",
+	"@types/mocha": "^10.0.10",
 	"@types/natural": "^5.1.5",
 	"@types/node": "^22.9.3",
+	chai: "^5.1.2",
+	mocha: "^11.0.1",
 	rollup: "^4.27.4",
 	"rollup-plugin-typescript2": "^0.36.0",
+	tsx: "^4.19.2",
 	typescript: "^5.7.2"
 };
 var scripts = {
-	build: "rollup -c"
+	build: "rollup -c",
+	test: "mocha"
 };
 var packageJson = {
 	name: name,
@@ -167,17 +173,33 @@ function assertFileExtension(ext) {
         return value;
     };
 }
+function parseIntAndAssert(...assertions) {
+    return (value) => {
+        const int = parseInt(value, 10);
+        assertions.forEach(assertion => assertion(int));
+        return int;
+    };
+}
+function assertPositive(option) {
+    return (value) => {
+        if (value < 0) {
+            throw new Error(`${option} should be positive!`);
+        }
+    };
+}
 const program = new Command();
 program
     .name('transcribe')
     .description('Tool to transcribe videos using AI.')
     .version(packageJson.version)
     .argument('<file>', 'Path to the original video file.')
-    .option('-o, --output <file>', `Full or relative path where the created SubRip Subtitle (.srt) file should be written.
-        By default, it will be saved in the same directory as the input video file.`, assertFileExtension('.srt'))
-    .option('-t, --teleprompt <file>', `Full or relative path to teleprompter text (.txt) file.
-        If not provided, transcription will not be corrected.`, assertFileExtension('.txt'))
-    .option('-l, --locale <string>', 'Locale that will be used to transcribe the video (default: en-US).', 'en-US')
+    .option('-o, --output <file>', 'Full or relative path where the created SubRip Subtitle (.srt) file should be written. ' +
+    'By default, it will be saved in the same directory as the input video file.', assertFileExtension('.srt'))
+    .option('-t, --teleprompt <file>', 'Full or relative path to teleprompter text (.txt) file. ' +
+    'If not provided, transcription will not be corrected.', assertFileExtension('.txt'))
+    .option('-l, --locale <string>', 'Locale that will be used to transcribe the video.', 'en-US')
+    .option('-n, --length <number>', 'Maximum number of words per caption.', parseIntAndAssert(assertPositive('Max caption length')), 5)
+    .option('-k, --karaoke', 'Enables Karaoke-style captioning supported by PupCaps.')
     .action((inputFile, options) => {
     const absoluteInputFile = path__namespace.resolve(inputFile);
     program.args[0] = absoluteInputFile;
@@ -201,6 +223,8 @@ function parseArgs() {
         srtOutputFile: opts.output,
         teleprompterFile: opts.teleprompt,
         locale: opts.locale,
+        maxWordsPerCaption: opts.length,
+        karaokeEnabled: opts.karaoke,
     };
 }
 
@@ -287,24 +311,76 @@ async function transcribeFile(audioFile, locale) {
     return result;
 }
 
-const wordsPerCluster = 5;
-function generateCaptions(deepgramWords) {
+function asciiFolding(word) {
+    return word
+        .normalize('NFD') // decomposes the letters and diacritics.
+        .replace(/\p{Diacritic}/gu, ''); // removes all the diacritics.
+}
+function normalizeWord(word) {
+    return asciiFolding(word)
+        .replace(/’/g, "'") // normalize apostrophes
+        .replaceAll(/[^\w']/g, '') // remove all punctuation
+        .toLowerCase();
+}
+function endsWithPunctuation(word) {
+    return !!asciiFolding(word).match(/[^\w']$/);
+}
+/**
+ * Attaches punctuation signs to the previous word.
+ * @param tokens  word tokens
+ */
+function collapsePunctuation(tokens) {
+    const res = [];
+    for (const token of tokens) {
+        if (token.match(/[A-Za-zÀ-ÖØ-öø-ÿ]/)) {
+            res.push(token);
+        }
+        else {
+            res[res.length - 1] += ` ${token}`;
+        }
+    }
+    return res;
+}
+
+function generateCaptions(deepgramWords, maxWordsPerCaption, karaoke = false) {
+    const words = deepgramWords.map(deepgramWordToCaption);
+    const clusters = clusterWords(words, maxWordsPerCaption);
+    return karaoke ? generateKaraoke(clusters) : generateSimple(clusters);
+}
+function clusterWords(words, maxWordsPerCaption) {
     let clusters = [];
-    let lastCaption = null;
+    let lastWord = null;
     let lastCluster = null;
-    for (let word of deepgramWords) {
-        const newCaption = deepgramWordToCaption(word);
+    for (let word of words) {
         const wordCount = lastCluster?.length || 0;
-        if (newCaption.start === lastCaption?.end && wordCount < wordsPerCluster) {
-            lastCluster.push(newCaption);
+        if (word.start === lastWord?.end
+            && wordCount < maxWordsPerCaption
+            && !endsWithPunctuation(lastWord.word)) {
+            lastCluster.push(word);
         }
         else {
             lastCluster = [];
-            lastCluster.push(newCaption);
+            lastCluster.push(word);
             clusters.push(lastCluster);
         }
-        lastCaption = newCaption;
+        lastWord = word;
     }
+    return clusters;
+}
+function generateSimple(clusters) {
+    let n = 1;
+    let allCaptions = '';
+    for (let cluster of clusters) {
+        const firstWord = cluster[0];
+        const lastWord = cluster[cluster.length - 1];
+        const captionWords = cluster.map(caption => caption.word).join(' ');
+        const captionStr = `${n}\n${firstWord.start} --> ${lastWord.end}\n${captionWords}\n\n`;
+        n++;
+        allCaptions += captionStr;
+    }
+    return allCaptions;
+}
+function generateKaraoke(clusters) {
     let n = 1;
     let allCaptions = '';
     for (let cluster of clusters) {
@@ -329,7 +405,7 @@ function deepgramWordToCaption(deepgramWord) {
     return {
         start: startStr,
         end: endStr,
-        word: deepgramWord.punctuated_word,
+        word: deepgramWord.punctuated_word ?? deepgramWord.word,
     };
 }
 function secondsToTimecodes(seconds) {
@@ -338,14 +414,6 @@ function secondsToTimecodes(seconds) {
         toFormat('HH:mm:ss.SSS');
 }
 
-function normalizeWord(word) {
-    return word
-        .normalize('NFD') // decomposes the letters and diacritics.
-        .replace(/\p{Diacritic}/gu, '') // removes all the diacritics.
-        .replace(/’/g, "'") // normalize apostrophes
-        .replaceAll(/[^\w']/g, '') // remove all punctuation
-        .toLowerCase();
-}
 function compare(transcriptionWord, teleprompterToken) {
     const normalizedTranscriptionWord = normalizeWord(transcriptionWord.punctuated_word);
     const normalizedTeleprompterToken = normalizeWord(teleprompterToken);
@@ -355,22 +423,6 @@ function avgWordDurationSec(transcribedWords) {
     return transcribedWords
         .map(word => word.end - word.start)
         .reduce((total, curr) => total + curr) / transcribedWords.length;
-}
-/**
- * Attaches punctuation signs to the previous word.
- * @param tokens  word tokens
- */
-function collapsePunctuation(tokens) {
-    const res = [];
-    for (const token of tokens) {
-        if (token.match(/[A-Za-zÀ-ÖØ-öø-ÿ]/)) {
-            res.push(token);
-        }
-        else {
-            res[res.length - 1] += ` ${token}`;
-        }
-    }
-    return res;
 }
 class Corrector {
     tokenizer = new natural__namespace.RegexpTokenizer({ pattern: /\s+/ });
@@ -541,7 +593,7 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
         }
         // Generate captions
         console.log(chalk.yellow('Step 6:') + ' ' + chalk.blue('Generating captions'));
-        const captionsText = generateCaptions(transcribedWords);
+        const captionsText = generateCaptions(transcribedWords, cliArgs.maxWordsPerCaption, cliArgs.karaokeEnabled);
         fs.writeFileSync(cliArgs.srtOutputFile, captionsText);
         console.log(chalk.green('Success:') + ' ' + `Captions written into ${cliArgs.srtOutputFile}`);
     }

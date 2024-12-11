@@ -1,17 +1,9 @@
 import * as natural from 'natural';
 import * as diff from 'fast-array-diff';
 import {DeepgramWord} from './transcriber';
+import {collapsePunctuation, normalizeWord} from './nlp';
 
 type Token = DeepgramWord | string;
-
-function normalizeWord(word: string): string {
-    return word
-        .normalize('NFD')                   // decomposes the letters and diacritics.
-        .replace(/\p{Diacritic}/gu, '')     // removes all the diacritics.
-        .replace(/’/g, "'")                 // normalize apostrophes
-        .replaceAll(/[^\w']/g, '')          // remove all punctuation
-        .toLowerCase();
-}
 
 function compare(transcriptionWord: Token, teleprompterToken: Token): boolean {
     const normalizedTranscriptionWord = normalizeWord((transcriptionWord as DeepgramWord).punctuated_word!);
@@ -24,24 +16,6 @@ function avgWordDurationSec(transcribedWords: DeepgramWord[]): number {
     return transcribedWords
         .map(word => word.end - word.start)
         .reduce((total, curr) => total + curr) / transcribedWords.length;
-}
-
-/**
- * Attaches punctuation signs to the previous word.
- * @param tokens  word tokens
- */
-function collapsePunctuation(tokens: string[]) {
-    const res = [];
-
-    for (const token of tokens) {
-        if (token.match(/[A-Za-zÀ-ÖØ-öø-ÿ]/)) {
-            res.push(token);
-        } else {
-            res[res.length - 1] += ` ${token}`;
-        }
-    }
-
-    return res;
 }
 
 export class Corrector {

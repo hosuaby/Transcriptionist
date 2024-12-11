@@ -57,7 +57,7 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
 
         // Generate captions
         console.log(chalk.yellow('Step 6:') + ' ' + chalk.blue('Generating captions'));
-        const captionsText = generateCaptions(transcribedWords);
+        const captionsText = generateCaptions(transcribedWords, cliArgs.maxWordsPerCaption, cliArgs.karaokeEnabled);
         writeFileSync(cliArgs.srtOutputFile, captionsText);
 
         console.log(chalk.green('Success:') + ' ' + `Captions written into ${cliArgs.srtOutputFile}`);

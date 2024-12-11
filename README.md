@@ -104,7 +104,9 @@ transcribe path/to/video.mp4 --output path/to/captions.srt --locale fr
 |------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | -o, --output     |         | Full or relative path where the created SubRip Subtitle (.srt) file should be written. By default, it will be saved in the same directory as the input video file. |
 | -t, --teleprompt |         | Full or relative path to teleprompter text (.txt) file. If not provided, transcription will not be corrected.                                                      |
-| -l, --locale     | en-US   | Locale that will be used to transcribe the video                                                                                                                   |
+| -l, --locale     | en-US   | Locale that will be used to transcribe the video.                                                                                                                  |
+| -n, --length     | 5       | Maximum number of words per caption.                                                                                                                               |
+| -k, --karaoke    |         | Enables Karaoke-style captioning supported by PupCaps.                                                                                                             |
 
 ## Caption Video
 

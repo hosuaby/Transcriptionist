@@ -7,6 +7,8 @@ export interface Args {
     srtOutputFile: string;
     teleprompterFile?: string
     locale: string;
+    maxWordsPerCaption: number;
+    karaokeEnabled: boolean;
 }
 
 function assertFileExtension(ext: string): (v: string) => void {
@@ -18,6 +20,22 @@ function assertFileExtension(ext: string): (v: string) => void {
     };
 }
 
+function parseIntAndAssert(...assertions: ((v: number) => void)[]): (v: string) => number {
+    return (value: string) => {
+        const int = parseInt(value, 10);
+        assertions.forEach(assertion => assertion(int));
+        return int;
+    }
+}
+
+function assertPositive(option: string): (v: number) => void {
+    return (value: number) => {
+        if (value < 0) {
+            throw new Error(`${option} should be positive!`);
+        }
+    };
+}
+
 const program = new Command();
 
 program
@@ -26,16 +44,22 @@ program
     .version(packageJson.version)
     .argument('<file>', 'Path to the original video file.')
     .option('-o, --output <file>',
-        `Full or relative path where the created SubRip Subtitle (.srt) file should be written.
-        By default, it will be saved in the same directory as the input video file.`,
+        'Full or relative path where the created SubRip Subtitle (.srt) file should be written. ' +
+        'By default, it will be saved in the same directory as the input video file.',
         assertFileExtension('.srt'))
     .option('-t, --teleprompt <file>',
-        `Full or relative path to teleprompter text (.txt) file.
-        If not provided, transcription will not be corrected.`,
+        'Full or relative path to teleprompter text (.txt) file. ' +
+        'If not provided, transcription will not be corrected.',
         assertFileExtension('.txt'))
     .option('-l, --locale <string>',
-        'Locale that will be used to transcribe the video (default: en-US).',
+        'Locale that will be used to transcribe the video.',
         'en-US')
+    .option('-n, --length <number>',
+        'Maximum number of words per caption.',
+        parseIntAndAssert(assertPositive('Max caption length')),
+        5)
+    .option('-k, --karaoke',
+        'Enables Karaoke-style captioning supported by PupCaps.')
     .action((inputFile, options: any) => {
         const absoluteInputFile = path.resolve(inputFile);
         program.args[0] = absoluteInputFile;
@@ -62,5 +86,7 @@ export function parseArgs(): Args {
         srtOutputFile: opts.output,
         teleprompterFile: opts.teleprompt,
         locale: opts.locale,
+        maxWordsPerCaption: opts.length,
+        karaokeEnabled: opts.karaoke,
     };
 }
