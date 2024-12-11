@@ -8,6 +8,7 @@ function normalizeWord(word: string): string {
     return word
         .normalize('NFD')                   // decomposes the letters and diacritics.
         .replace(/\p{Diacritic}/gu, '')     // removes all the diacritics.
+        .replace(/’/g, "'")                 // normalize apostrophes
         .replaceAll(/[^\w']/g, '')          // remove all punctuation
         .toLowerCase();
 }
@@ -57,11 +58,48 @@ export class Corrector {
 
         console.log(`Similarity: ${similarity}%`);
 
-        const patch = diff.getPatch(transcribedWords as Token[], this.teleprompterTokens as Token[], compare);
+        let patch = diff.getPatch(transcribedWords as Token[], this.teleprompterTokens as Token[], compare);
+        patch = Corrector.handleReplacements(patch);
         const patched: Token[] = diff.applyPatch(transcribedWords as Token[], patch);
 
         const avgWordDuration = avgWordDurationSec(transcribedWords);
         return Corrector.ajustDurationOfInsertedWords(patched, avgWordDuration);
+    }
+
+    private static handleReplacements(patch: diff.Patch<Token>): diff.Patch<Token> {
+        for (let i = 0; i < patch.length; i++) {
+            const currentOp = patch[i];
+            const precOp: diff.PatchItem<Token> | null = i ? patch[i - 1] : null;
+
+            if (currentOp.type === 'add' && precOp?.type === 'remove') {
+                // This is replacement
+                let adjustedWords: DeepgramWord[];
+
+                if (currentOp.items.length === precOp.items.length) {
+                    // Use the start and the end of every word individually
+                    adjustedWords = [];
+                    for (let j = 0; j < currentOp.items.length; j++) {
+                        const newWord = currentOp.items[j] as string;
+                        const replacedWord = precOp.items[j] as DeepgramWord;
+                        adjustedWords.push({
+                            word: newWord,
+                            punctuated_word: newWord,
+                            start: replacedWord.start,
+                            end: replacedWord.end,
+                            confidence: 1,
+                        });
+                    }
+                } else {
+                    const startTime = (precOp.items[0] as DeepgramWord).start;
+                    const endTime = (precOp.items[precOp.items.length - 1] as DeepgramWord).end;
+                    adjustedWords = Corrector.adjustWords(currentOp.items as string[], startTime, endTime);
+                }
+
+                currentOp.items = adjustedWords;
+            }
+        }
+
+        return patch;
     }
 
     private static ajustDurationOfInsertedWords(patchedTokens: Token[], avgWordDuration: number): DeepgramWord[] {

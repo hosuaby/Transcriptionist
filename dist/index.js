@@ -342,6 +342,7 @@ function normalizeWord(word) {
     return word
         .normalize('NFD') // decomposes the letters and diacritics.
         .replace(/\p{Diacritic}/gu, '') // removes all the diacritics.
+        .replace(/’/g, "'") // normalize apostrophes
         .replaceAll(/[^\w']/g, '') // remove all punctuation
         .toLowerCase();
 }
@@ -381,10 +382,43 @@ class Corrector {
         const same = diff__namespace.same(transcribedWords, this.teleprompterTokens, compare);
         const similarity = same.length / this.teleprompterTokens.length * 100;
         console.log(`Similarity: ${similarity}%`);
-        const patch = diff__namespace.getPatch(transcribedWords, this.teleprompterTokens, compare);
+        let patch = diff__namespace.getPatch(transcribedWords, this.teleprompterTokens, compare);
+        patch = Corrector.handleReplacements(patch);
         const patched = diff__namespace.applyPatch(transcribedWords, patch);
         const avgWordDuration = avgWordDurationSec(transcribedWords);
         return Corrector.ajustDurationOfInsertedWords(patched, avgWordDuration);
+    }
+    static handleReplacements(patch) {
+        for (let i = 0; i < patch.length; i++) {
+            const currentOp = patch[i];
+            const precOp = i ? patch[i - 1] : null;
+            if (currentOp.type === 'add' && precOp?.type === 'remove') {
+                // This is replacement
+                let adjustedWords;
+                if (currentOp.items.length === precOp.items.length) {
+                    // Use the start and the end of every word individually
+                    adjustedWords = [];
+                    for (let j = 0; j < currentOp.items.length; j++) {
+                        const newWord = currentOp.items[j];
+                        const replacedWord = precOp.items[j];
+                        adjustedWords.push({
+                            word: newWord,
+                            punctuated_word: newWord,
+                            start: replacedWord.start,
+                            end: replacedWord.end,
+                            confidence: 1,
+                        });
+                    }
+                }
+                else {
+                    const startTime = precOp.items[0].start;
+                    const endTime = precOp.items[precOp.items.length - 1].end;
+                    adjustedWords = Corrector.adjustWords(currentOp.items, startTime, endTime);
+                }
+                currentOp.items = adjustedWords;
+            }
+        }
+        return patch;
     }
     static ajustDurationOfInsertedWords(patchedTokens, avgWordDuration) {
         const result = [];
