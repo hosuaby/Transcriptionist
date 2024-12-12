@@ -1,6 +1,7 @@
 # Transcriptionist
 
 [![npm](https://img.shields.io/npm/v/transcriptionist.svg)](http://npm.im/transcriptionist) 
+[![CI](https://github.com/hosuaby/Transcriptionist/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/hosuaby/Transcriptionist/actions/workflows/ci.yml)
 
 <p align="center">
     <img src="./docs/transcriptionist.webp"/>
