@@ -22,7 +22,9 @@ for natural language processing (NLP).
 
 ## Requirements
 
-You need `node` and `ffmpeg` to be installed on your computer.
+You need `node` to be installed on your computer.
+
+If `ffmpeg` binary is missing on your system, it will be installed automatically.
 
 ### Deepgram
 
