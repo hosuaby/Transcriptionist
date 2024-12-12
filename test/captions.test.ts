@@ -9,5 +9,5 @@ it('secondsToTimecodes', () => {
     const timecode = secondsToTimecodes(seconds);
 
     // Then
-    expect(timecode).to.equals('01:49:07.382');
+    expect(timecode).to.equals('01:49:07,382');
 });
