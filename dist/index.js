@@ -429,7 +429,7 @@ function secondsToTimecodes(seconds) {
     const mm = String(minutes).padStart(2, '0');
     const ss = String(wholeSeconds).padStart(2, '0');
     const sss = String(millis).padStart(3, '0');
-    return `${hh}:${mm}:${ss}.${sss}`;
+    return `${hh}:${mm}:${ss},${sss}`;
 }
 
 function compare(transcriptionWord, teleprompterToken) {
