@@ -22,6 +22,7 @@ export default [{
     ],
     external: [
         'fs', 'path', 'os', 'stream', 'util',   // Node.js built-in modules
-        'commander', 'fluent-ffmpeg', '@deepgram/sdk', 'luxon', 'natural', 'fast-array-diff', 'chalk',
+        'commander', 'fluent-ffmpeg', '@deepgram/sdk', 'natural', 'fast-array-diff', 'chalk',
+        '@ffmpeg-installer/ffmpeg',
     ],
 }];

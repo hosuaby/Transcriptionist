@@ -5,7 +5,6 @@ var require$$0 = require('commander');
 var ffmpeg = require('fluent-ffmpeg');
 var fs = require('fs');
 var sdk = require('@deepgram/sdk');
-var luxon = require('luxon');
 var natural = require('natural');
 var diff = require('fast-array-diff');
 var chalk = require('chalk');
@@ -122,8 +121,10 @@ var dependencies = {
 	commander: "^12.1.0",
 	"fast-array-diff": "^1.1.0",
 	"fluent-ffmpeg": "^2.1.3",
-	luxon: "^3.5.0",
 	natural: "^8.0.1"
+};
+var optionalDependencies = {
+	"@ffmpeg-installer/ffmpeg": "^1.1.0"
 };
 var devDependencies = {
 	"@commander-js/extra-typings": "^12.1.0",
@@ -133,7 +134,6 @@ var devDependencies = {
 	"@types/chai": "^5.0.1",
 	"@types/chalk": "^2.2.4",
 	"@types/fluent-ffmpeg": "^2.1.27",
-	"@types/luxon": "^3.4.2",
 	"@types/mocha": "^10.0.10",
 	"@types/natural": "^5.1.5",
 	"@types/node": "^22.9.3",
@@ -161,6 +161,7 @@ var packageJson = {
 	homepage: homepage,
 	keywords: keywords,
 	dependencies: dependencies,
+	optionalDependencies: optionalDependencies,
 	devDependencies: devDependencies,
 	scripts: scripts
 };
@@ -228,6 +229,15 @@ function parseArgs() {
     };
 }
 
+(() => {
+    try {
+        const ffmpegInstaller = require('@ffmpeg-installer/ffmpeg');
+        ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+    }
+    catch (error) {
+        console.warn('Impossible to install FFMpeg. Use system-provided ffmpeg.');
+    }
+})();
 async function extractAudio(videoInputFile, audioOutputFile) {
     console.log(`Extracting audio into ${audioOutputFile}...`);
     await new Promise((resolve, reject) => {
@@ -409,9 +419,17 @@ function deepgramWordToCaption(deepgramWord) {
     };
 }
 function secondsToTimecodes(seconds) {
-    return luxon.DateTime
-        .fromSeconds(seconds, { zone: 'utc' }).
-        toFormat('HH:mm:ss.SSS');
+    const millis = Math.floor(seconds * 1000) % 1000;
+    const hours = Math.floor(seconds / 3600);
+    const remainingSecondsAfterHours = seconds % 3600;
+    const minutes = Math.floor(remainingSecondsAfterHours / 60);
+    const remainingSecondsAfterMinutes = remainingSecondsAfterHours % 60;
+    const wholeSeconds = Math.floor(remainingSecondsAfterMinutes);
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    const ss = String(wholeSeconds).padStart(2, '0');
+    const sss = String(millis).padStart(3, '0');
+    return `${hh}:${mm}:${ss}.${sss}`;
 }
 
 function compare(transcriptionWord, teleprompterToken) {

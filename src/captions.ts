@@ -1,4 +1,3 @@
-import {DateTime} from 'luxon';
 import {DeepgramWord} from './transcriber';
 import {endsWithPunctuation} from './nlp';
 
@@ -95,7 +94,18 @@ function deepgramWordToCaption(deepgramWord: DeepgramWord): Caption {
 }
 
 export function secondsToTimecodes(seconds: number): string {
-    return DateTime
-        .fromSeconds(seconds, { zone: 'utc' }).
-        toFormat('HH:mm:ss.SSS');
+    const millis = Math.floor(seconds * 1000) % 1000;
+
+    const hours = Math.floor(seconds / 3600);
+    const remainingSecondsAfterHours = seconds % 3600;
+    const minutes = Math.floor(remainingSecondsAfterHours / 60);
+    const remainingSecondsAfterMinutes = remainingSecondsAfterHours % 60;
+    const wholeSeconds = Math.floor(remainingSecondsAfterMinutes);
+
+    const hh = String(hours).padStart(2, '0');
+    const mm = String(minutes).padStart(2, '0');
+    const ss = String(wholeSeconds).padStart(2, '0');
+    const sss = String(millis).padStart(3, '0');
+
+    return `${hh}:${mm}:${ss}.${sss}`;
 }
