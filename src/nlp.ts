@@ -14,21 +14,3 @@ export function normalizeWord(word: string): string {
 export function endsWithPunctuation(word: string): boolean {
     return !!asciiFolding(word).match(/[^\w']$/);
 }
-
-/**
- * Attaches punctuation signs to the previous word.
- * @param tokens  word tokens
- */
-export function collapsePunctuation(tokens: string[]) {
-    const res = [];
-
-    for (const token of tokens) {
-        if (token.match(/[A-Za-zÀ-ÖØ-öø-ÿ]/)) {
-            res.push(token);
-        } else {
-            res[res.length - 1] += ` ${token}`;
-        }
-    }
-
-    return res;
-}

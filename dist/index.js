@@ -5,8 +5,8 @@ var require$$0 = require('commander');
 var ffmpeg = require('fluent-ffmpeg');
 var fs = require('fs');
 var sdk = require('@deepgram/sdk');
-var natural = require('natural');
 var diff = require('fast-array-diff');
+var nlp = require('compromise');
 var chalk = require('chalk');
 
 function _interopNamespaceDefault(e) {
@@ -27,7 +27,6 @@ function _interopNamespaceDefault(e) {
 }
 
 var path__namespace = /*#__PURE__*/_interopNamespaceDefault(path);
-var natural__namespace = /*#__PURE__*/_interopNamespaceDefault(natural);
 var diff__namespace = /*#__PURE__*/_interopNamespaceDefault(diff);
 
 function getDefaultExportFromCjs (x) {
@@ -119,9 +118,9 @@ var dependencies = {
 	"@deepgram/sdk": "^3.9.0",
 	chalk: "^4.1.2",
 	commander: "^12.1.0",
+	compromise: "^14.14.3",
 	"fast-array-diff": "^1.1.0",
-	"fluent-ffmpeg": "^2.1.3",
-	natural: "^8.0.1"
+	"fluent-ffmpeg": "^2.1.3"
 };
 var optionalDependencies = {
 	"@ffmpeg-installer/ffmpeg": "^1.1.0"
@@ -335,22 +334,6 @@ function normalizeWord(word) {
 function endsWithPunctuation(word) {
     return !!asciiFolding(word).match(/[^\w']$/);
 }
-/**
- * Attaches punctuation signs to the previous word.
- * @param tokens  word tokens
- */
-function collapsePunctuation(tokens) {
-    const res = [];
-    for (const token of tokens) {
-        if (token.match(/[A-Za-zÀ-ÖØ-öø-ÿ]/)) {
-            res.push(token);
-        }
-        else {
-            res[res.length - 1] += ` ${token}`;
-        }
-    }
-    return res;
-}
 
 function generateCaptions(deepgramWords, maxWordsPerCaption, karaoke = false) {
     const words = deepgramWords.map(deepgramWordToCaption);
@@ -433,7 +416,7 @@ function secondsToTimecodes(seconds) {
 }
 
 function compare(transcriptionWord, teleprompterToken) {
-    const normalizedTranscriptionWord = normalizeWord(transcriptionWord.punctuated_word);
+    const normalizedTranscriptionWord = normalizeWord(transcriptionWord.word);
     const normalizedTeleprompterToken = normalizeWord(teleprompterToken);
     return normalizedTranscriptionWord === normalizedTeleprompterToken;
 }
@@ -443,10 +426,11 @@ function avgWordDurationSec(transcribedWords) {
         .reduce((total, curr) => total + curr) / transcribedWords.length;
 }
 class Corrector {
-    tokenizer = new natural__namespace.RegexpTokenizer({ pattern: /\s+/ });
     teleprompterTokens;
     constructor(teleprompterText) {
-        this.teleprompterTokens = collapsePunctuation(this.tokenizer.tokenize(teleprompterText));
+        const doc = nlp(teleprompterText);
+        doc.contractions().expand();
+        this.teleprompterTokens = doc.terms().out('array');
     }
     correct(transcribedWords) {
         const same = diff__namespace.same(transcribedWords, this.teleprompterTokens, compare);

@@ -1,12 +1,12 @@
-import * as natural from 'natural';
 import * as diff from 'fast-array-diff';
 import {DeepgramWord} from './transcriber';
-import {collapsePunctuation, normalizeWord} from './nlp';
+import {normalizeWord} from './nlp';
+import nlp from 'compromise';
 
 type Token = DeepgramWord | string;
 
 function compare(transcriptionWord: Token, teleprompterToken: Token): boolean {
-    const normalizedTranscriptionWord = normalizeWord((transcriptionWord as DeepgramWord).punctuated_word!);
+    const normalizedTranscriptionWord = normalizeWord((transcriptionWord as DeepgramWord).word!);
     const normalizedTeleprompterToken = normalizeWord(teleprompterToken as string);
 
     return normalizedTranscriptionWord === normalizedTeleprompterToken;
@@ -19,11 +19,12 @@ function avgWordDurationSec(transcribedWords: DeepgramWord[]): number {
 }
 
 export class Corrector {
-    private readonly tokenizer = new natural.RegexpTokenizer({ pattern: /\s+/ });
     private readonly teleprompterTokens: string[];
 
     constructor(teleprompterText: string) {
-        this.teleprompterTokens = collapsePunctuation(this.tokenizer.tokenize(teleprompterText));
+        const doc = nlp(teleprompterText);
+        doc.contractions().expand();
+        this.teleprompterTokens = doc.terms().out('array');
     }
 
     public correct(transcribedWords: DeepgramWord[]): DeepgramWord[] {
