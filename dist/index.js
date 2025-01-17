@@ -333,6 +333,9 @@ function normalizeWord(word) {
 function endsWithPunctuation(word) {
     return !!asciiFolding(word).match(/[^\w']$/);
 }
+function removePunctuation(tokens) {
+    return tokens.filter(token => !token.match(/[,;.:!?]/));
+}
 
 function generateCaptions(deepgramWords, maxWordsPerCaption, karaoke = false) {
     const words = deepgramWords.map(deepgramWordToCaption);
@@ -428,7 +431,7 @@ class Corrector {
     teleprompterTokens;
     constructor(teleprompterText) {
         const doc = nlp(teleprompterText);
-        this.teleprompterTokens = doc.terms().out('array');
+        this.teleprompterTokens = removePunctuation(doc.terms().out('array'));
     }
     correct(transcribedWords) {
         const same = diff__namespace.same(transcribedWords, this.teleprompterTokens, compare);
@@ -494,6 +497,8 @@ class Corrector {
                     const segmentEndTime = currentToken.start;
                     const adjustedWords = Corrector.adjustWords(wordsToAdjust, segmentStartTime, segmentEndTime);
                     result.push(...adjustedWords);
+                    // Add current element to the result
+                    result.push(currentToken);
                 }
                 else {
                     // Insert in the middle of transcription
@@ -511,8 +516,6 @@ class Corrector {
                 // Reset adjusted segment
                 segmentStart = null;
                 segmentEnd = null;
-                // Add current element to the result
-                result.push(patchedTokens[i]);
             }
             else if (typeof patchedTokens[i] != 'string') {
                 // Add current element to the result
@@ -535,17 +538,43 @@ class Corrector {
         const durationPerInsertedWord = segmentDuration / words.length;
         let time = startTime;
         const adjustedWords = [];
-        for (const word of words) {
+        for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            const isLastWord = i === words.length - 1;
             const deepgramWord = {
                 word: word,
                 punctuated_word: word,
-                start: time,
-                end: (time += durationPerInsertedWord),
                 confidence: 1,
+                start: time,
+                end: isLastWord ? endTime : time += durationPerInsertedWord,
             };
             adjustedWords.push(deepgramWord);
         }
         return adjustedWords;
+    }
+}
+
+function validateWordsSpans(words) {
+    const startBeforePrecedentIndices = [];
+    for (let i = 1; i < words.length; i++) {
+        const word = words[i];
+        const precedentWord = words[i - 1];
+        if (word.start < precedentWord.end) {
+            startBeforePrecedentIndices.push(i);
+        }
+    }
+    if (!startBeforePrecedentIndices.length) {
+        console.log(chalk.green('All words are spanned correctly.'));
+    }
+    else {
+        console.log(chalk.yellow('Followed words are spanned incorrectly:'));
+        for (const i of startBeforePrecedentIndices) {
+            const word = words[i];
+            const precedentWord = words[i - 1];
+            console.log(chalk.grey('...'));
+            console.log(`${chalk.blue(precedentWord.start)} -> ${chalk.blue(precedentWord.end)}: ${chalk.green(precedentWord.punctuated_word)}`);
+            console.log(`${chalk.blue(word.start)} -> ${chalk.blue(word.end)}: ${chalk.yellow(word.punctuated_word)}`);
+        }
     }
 }
 
@@ -591,8 +620,11 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
         else {
             console.log(chalk.yellow('Step 5:') + ' ' + chalk.blue('Teleprompter text file not provided (do nothing)'));
         }
+        // Validate words spans
+        console.log(chalk.yellow('Step 6:') + ' ' + chalk.blue('Validate words spans'));
+        validateWordsSpans(transcribedWords);
         // Generate captions
-        console.log(chalk.yellow('Step 6:') + ' ' + chalk.blue('Generating captions'));
+        console.log(chalk.yellow('Step 7:') + ' ' + chalk.blue('Generating captions'));
         const captionsText = generateCaptions(transcribedWords, cliArgs.maxWordsPerCaption, cliArgs.karaokeEnabled);
         fs.writeFileSync(cliArgs.srtOutputFile, captionsText);
         console.log(chalk.green('Success:') + ' ' + `Captions written into ${cliArgs.srtOutputFile}`);

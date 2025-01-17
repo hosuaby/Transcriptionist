@@ -14,3 +14,7 @@ export function normalizeWord(word: string): string {
 export function endsWithPunctuation(word: string): boolean {
     return !!asciiFolding(word).match(/[^\w']$/);
 }
+
+export function removePunctuation(tokens: string[]) {
+    return tokens.filter(token => !token.match(/[,;.:!?]/));
+}

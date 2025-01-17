@@ -6,6 +6,7 @@ import {transcribeFile} from './transcriber';
 import {generateCaptions} from './captions';
 import {Corrector} from './corrector';
 import chalk from 'chalk';
+import {validateWordsSpans} from './words-spans-validator';
 
 const cliArgs = parseArgs();
 
@@ -55,8 +56,12 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
             console.log(chalk.yellow('Step 5:') + ' ' + chalk.blue('Teleprompter text file not provided (do nothing)'));
         }
 
+        // Validate words spans
+        console.log(chalk.yellow('Step 6:') + ' ' + chalk.blue('Validate words spans'));
+        validateWordsSpans(transcribedWords);
+
         // Generate captions
-        console.log(chalk.yellow('Step 6:') + ' ' + chalk.blue('Generating captions'));
+        console.log(chalk.yellow('Step 7:') + ' ' + chalk.blue('Generating captions'));
         const captionsText = generateCaptions(transcribedWords, cliArgs.maxWordsPerCaption, cliArgs.karaokeEnabled);
         writeFileSync(cliArgs.srtOutputFile, captionsText);
 

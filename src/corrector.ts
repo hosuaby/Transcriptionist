@@ -1,6 +1,6 @@
 import * as diff from 'fast-array-diff';
 import {DeepgramWord} from './transcriber';
-import {normalizeWord} from './nlp';
+import {normalizeWord, removePunctuation} from './nlp';
 import nlp from 'compromise';
 
 type Token = DeepgramWord | string;
@@ -23,7 +23,7 @@ export class Corrector {
 
     constructor(teleprompterText: string) {
         const doc = nlp(teleprompterText);
-        this.teleprompterTokens = doc.terms().out('array');
+        this.teleprompterTokens = removePunctuation(doc.terms().out('array'));
     }
 
     public correct(transcribedWords: DeepgramWord[]): DeepgramWord[] {
@@ -100,6 +100,9 @@ export class Corrector {
                     const segmentEndTime = currentToken.start;
                     const adjustedWords = Corrector.adjustWords(wordsToAdjust, segmentStartTime, segmentEndTime);
                     result.push(...adjustedWords);
+
+                    // Add current element to the result
+                    result.push(currentToken);
                 } else {
                     // Insert in the middle of transcription
                     const lastAsjustedWord = result.pop()!;
@@ -117,9 +120,6 @@ export class Corrector {
                 // Reset adjusted segment
                 segmentStart = null;
                 segmentEnd = null;
-
-                // Add current element to the result
-                result.push(patchedTokens[i] as DeepgramWord);
             } else if (typeof patchedTokens[i] != 'string') {
                 // Add current element to the result
                 result.push(patchedTokens[i] as DeepgramWord);
@@ -146,13 +146,16 @@ export class Corrector {
         let time = startTime;
         const adjustedWords: DeepgramWord[] = [];
 
-        for (const word of words) {
+        for (let i = 0; i < words.length; i++) {
+            const word = words[i];
+            const isLastWord = i === words.length - 1;
+
             const deepgramWord: DeepgramWord = {
                 word: word,
                 punctuated_word: word,
-                start: time,
-                end: (time += durationPerInsertedWord),
                 confidence: 1,
+                start: time,
+                end: isLastWord ? endTime : time += durationPerInsertedWord,
             };
             adjustedWords.push(deepgramWord);
         }
