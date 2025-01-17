@@ -23,7 +23,6 @@ export class Corrector {
 
     constructor(teleprompterText: string) {
         const doc = nlp(teleprompterText);
-        doc.contractions().expand();
         this.teleprompterTokens = doc.terms().out('array');
     }
 

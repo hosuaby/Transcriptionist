@@ -134,7 +134,6 @@ var devDependencies = {
 	"@types/chalk": "^2.2.4",
 	"@types/fluent-ffmpeg": "^2.1.27",
 	"@types/mocha": "^10.0.10",
-	"@types/natural": "^5.1.5",
 	"@types/node": "^22.9.3",
 	chai: "^5.1.2",
 	mocha: "^11.0.1",
@@ -429,7 +428,6 @@ class Corrector {
     teleprompterTokens;
     constructor(teleprompterText) {
         const doc = nlp(teleprompterText);
-        doc.contractions().expand();
         this.teleprompterTokens = doc.terms().out('array');
     }
     correct(transcribedWords) {
