@@ -334,7 +334,7 @@ function endsWithPunctuation(word) {
     return !!asciiFolding(word).match(/[^\w']$/);
 }
 function removePunctuation(tokens) {
-    return tokens.filter(token => !token.match(/[,;.:!?]/));
+    return tokens.filter(token => !token.match(/^[,;.:!?]$/));
 }
 
 function generateCaptions(deepgramWords, maxWordsPerCaption, karaoke = false) {

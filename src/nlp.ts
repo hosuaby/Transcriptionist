@@ -16,5 +16,5 @@ export function endsWithPunctuation(word: string): boolean {
 }
 
 export function removePunctuation(tokens: string[]) {
-    return tokens.filter(token => !token.match(/[,;.:!?]/));
+    return tokens.filter(token => !token.match(/^[,;.:!?]$/));
 }
