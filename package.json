@@ -1,6 +1,6 @@
 {
   "name": "transcriptionist",
-  "version": "1.0.0-alpha",
+  "version": "1.0.0-alpha2",
   "description": "Tool to transcribe videos using AI.",
   "author": "Alexei KLENIN <alexei.klenin@gmail.com> (https://github.com/hosuaby)",
   "license": "Apache-2.0",

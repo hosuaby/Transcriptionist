@@ -11,7 +11,7 @@
 It seamlessly integrates with [PupCaps!](https://github.com/hosuaby/PupCaps), enabling you to create beautifully styled 
 captions for your videos using CSS.
 
-This tool leverages the power of `Deepgram` for speech-to-text transcription and utilizes the `natural` JavaScript library 
+This tool leverages the power of `Deepgram` for speech-to-text transcription and utilizes the `compromise` JavaScript library 
 for natural language processing (NLP).
 
 #### Features
