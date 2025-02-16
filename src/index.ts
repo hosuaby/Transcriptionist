@@ -16,9 +16,9 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
     try {
         console.log(chalk.magenta('Transcriptionist starting transcription'));
 
-        // Copy original video file
-        console.log(chalk.yellow('Step 1:') + ' ' + chalk.blue('Copy original video file'));
-        cpSync(cliArgs.videoInputFile, workDir.copiedVideoFile);
+        // Extract audio
+        console.log(chalk.yellow('Step 1:') + ' ' + chalk.blue('Extract audio'));
+        await extractAudio(cliArgs.videoInputFile, workDir.audioFile);
 
         // Copy teleprompter text file
         if (cliArgs.teleprompterFile) {
@@ -28,18 +28,14 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
             console.log(chalk.yellow('Step 2:') + ' ' + chalk.blue('Teleprompter text file not provided (do nothing)'));
         }
 
-        // Extract audio
-        console.log(chalk.yellow('Step 3:') + ' ' + chalk.blue('Extract audio'));
-        await extractAudio(workDir.copiedVideoFile, workDir.audioFile);
-
         // Transcribe audio
         let transcription;
         if (!workDir.isTranscriptionExist(cliArgs.locale)) {
-            console.log(chalk.yellow('Step 4:') + ' ' + chalk.blue('Transcribing audio'));
+            console.log(chalk.yellow('Step 3:') + ' ' + chalk.blue('Transcribing audio'));
             transcription = await transcribeFile(workDir.audioFile, cliArgs.locale);
             workDir.saveTranscription(cliArgs.locale, transcription);
         } else {
-            console.log(chalk.yellow('Step 4:') + ' ' + chalk.blue(`Transcription for locale '${cliArgs.locale}' already exists. (do nothing)`));
+            console.log(chalk.yellow('Step 3:') + ' ' + chalk.blue(`Transcription for locale '${cliArgs.locale}' already exists. (do nothing)`));
             transcription = workDir.loadExistingTranscription(cliArgs.locale);
         }
 
@@ -48,20 +44,20 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
 
         // Correct words
         if (cliArgs.teleprompterFile) {
-            console.log(chalk.yellow('Step 5:') + ' ' + chalk.blue('Correcting transcription with the help of teleprompter text file'));
+            console.log(chalk.yellow('Step 4:') + ' ' + chalk.blue('Correcting transcription with the help of teleprompter text file'));
             const teleprompterText = readFileSync(workDir.teleprompterFile, 'utf-8');
             const corrector = new Corrector(teleprompterText);
             transcribedWords = corrector.correct(transcribedWords);
         } else {
-            console.log(chalk.yellow('Step 5:') + ' ' + chalk.blue('Teleprompter text file not provided (do nothing)'));
+            console.log(chalk.yellow('Step 4:') + ' ' + chalk.blue('Teleprompter text file not provided (do nothing)'));
         }
 
         // Validate words spans
-        console.log(chalk.yellow('Step 6:') + ' ' + chalk.blue('Validate words spans'));
+        console.log(chalk.yellow('Step 5:') + ' ' + chalk.blue('Validate words spans'));
         validateWordsSpans(transcribedWords);
 
         // Generate captions
-        console.log(chalk.yellow('Step 7:') + ' ' + chalk.blue('Generating captions'));
+        console.log(chalk.yellow('Step 6:') + ' ' + chalk.blue('Generating captions'));
         const wordsClusterer = createWordsClusterer(cliArgs);
         const wordsClusters = wordsClusterer.cluster(transcribedWords);
         const captionsText = generateCaptions(wordsClusters, cliArgs.karaokeEnabled);

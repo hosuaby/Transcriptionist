@@ -7,7 +7,7 @@ const outDir = path.join(__dirname, '..', 'out');
 export class WorkDir {
     private readonly workDir: string;
 
-    constructor(private readonly videoInputFile: string) {
+    constructor(videoInputFile: string) {
         const fileBasename = path.basename(videoInputFile);
         this.workDir = path.join(outDir, fileBasename);
 
@@ -18,11 +18,6 @@ export class WorkDir {
         if (!existsSync(this.transcriptionsDir)) {
             mkdirSync(this.transcriptionsDir);
         }
-    }
-
-    public get copiedVideoFile(): string {
-        const ext = path.extname(this.videoInputFile);
-        return path.join(this.workDir, `original.${ext}`);
     }
 
     public get audioFile(): string {
