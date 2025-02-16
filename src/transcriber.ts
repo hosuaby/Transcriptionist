@@ -1,5 +1,6 @@
 import {createClient, SyncPrerecordedResponse} from '@deepgram/sdk';
 import {readFileSync} from 'fs';
+import chalk from 'chalk';
 
 export interface DeepgramWord {
     word: string;
@@ -40,4 +41,22 @@ export async function transcribeFile(audioFile: string, locale: string): Promise
     console.log('Transcription finished!');
 
     return result;
+}
+
+export function printTranscription(transcription: SyncPrerecordedResponse) {
+    const transcribedWords = transcription.results.channels[0].alternatives[0].words;
+
+    for (const word of transcribedWords) {
+        let coloredWord;
+
+        if (word.confidence > 0.8) {
+            coloredWord = chalk.green(word.punctuated_word);
+        } else if (word.confidence > 0.5) {
+            coloredWord = chalk.yellow(word.punctuated_word);
+        } else {
+            coloredWord = chalk.red(word.punctuated_word);
+        }
+
+        console.log(`${ chalk.blue(word.start) } -> ${ chalk.blue(word.end) }: ${ coloredWord }`);
+    }
 }

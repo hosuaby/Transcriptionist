@@ -45,7 +45,6 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
 
         // Get transcription words
         let transcribedWords = transcription.results.channels[0].alternatives[0].words;
-        // validateWordsSpans(transcribedWords);   // TODO: remove it
 
         // Correct words
         if (cliArgs.teleprompterFile) {

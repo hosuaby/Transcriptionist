@@ -5,9 +5,9 @@ var require$$0 = require('commander');
 var ffmpeg = require('fluent-ffmpeg');
 var fs = require('fs');
 var sdk = require('@deepgram/sdk');
+var chalk = require('chalk');
 var diff = require('fast-array-diff');
 var nlp = require('compromise');
-var chalk = require('chalk');
 
 function _interopNamespaceDefault(e) {
 	var n = Object.create(null);
@@ -672,7 +672,6 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
         }
         // Get transcription words
         let transcribedWords = transcription.results.channels[0].alternatives[0].words;
-        // validateWordsSpans(transcribedWords);   // TODO: remove it
         // Correct words
         if (cliArgs.teleprompterFile) {
             console.log(chalk.yellow('Step 5:') + ' ' + chalk.blue('Correcting transcription with the help of teleprompter text file'));
