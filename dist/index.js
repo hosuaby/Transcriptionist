@@ -92,7 +92,7 @@ const {
 } = extraTypingsCommander;
 
 var name = "transcriptionist";
-var version = "1.0.0-alpha";
+var version = "1.0.0-alpha2";
 var description = "Tool to transcribe videos using AI.";
 var author = "Alexei KLENIN <alexei.klenin@gmail.com> (https://github.com/hosuaby)";
 var license = "Apache-2.0";
