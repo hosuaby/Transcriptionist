@@ -7,9 +7,9 @@ import {generateCaptions} from './captions';
 import {Corrector} from './corrector';
 import chalk from 'chalk';
 import {validateWordsSpans} from './words-spans-validator';
+import {createWordsClusterer} from './nlp/words-clusterer';
 
 const cliArgs = parseArgs();
-
 const workDir = new WorkDir(cliArgs.videoInputFile);
 
 (async () => {
@@ -45,6 +45,7 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
 
         // Get transcription words
         let transcribedWords = transcription.results.channels[0].alternatives[0].words;
+        // validateWordsSpans(transcribedWords);   // TODO: remove it
 
         // Correct words
         if (cliArgs.teleprompterFile) {
@@ -62,7 +63,9 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
 
         // Generate captions
         console.log(chalk.yellow('Step 7:') + ' ' + chalk.blue('Generating captions'));
-        const captionsText = generateCaptions(transcribedWords, cliArgs.maxWordsPerCaption, cliArgs.karaokeEnabled);
+        const wordsClusterer = createWordsClusterer(cliArgs);
+        const wordsClusters = wordsClusterer.cluster(transcribedWords);
+        const captionsText = generateCaptions(wordsClusters, cliArgs.karaokeEnabled);
         writeFileSync(cliArgs.srtOutputFile, captionsText);
 
         console.log(chalk.green('Success:') + ' ' + `Captions written into ${cliArgs.srtOutputFile}`);

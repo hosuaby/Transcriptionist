@@ -1,5 +1,5 @@
 import * as path from 'path';
-import {Command} from '@commander-js/extra-typings';
+import {Command, Option} from '@commander-js/extra-typings';
 import packageJson from '../package.json';
 
 export interface Args {
@@ -8,6 +8,8 @@ export interface Args {
     teleprompterFile?: string
     locale: string;
     maxWordsPerCaption: number;
+    splitBySentences: boolean;
+    splitByClauses: boolean;
     karaokeEnabled: boolean;
 }
 
@@ -58,6 +60,17 @@ program
         'Maximum number of words per caption.',
         parseIntAndAssert(assertPositive('Max caption length')),
         5)
+    .addOption(new Option('-s, --sentences',
+        'Split produced text by sentences, instead of defined number of words. ' +
+        'A sentence is defined to be a unit of text that ends with a sentence boundary marker ' +
+        '(period, question mark, exclamation mark). ' +
+        'If this option is provided, maximum number of words per caption is ignored.')
+        .conflicts([ 'clauses' ]))
+    .addOption(new Option('-c, --clauses',
+        'Split produced text by clauses, instead of defined number of words. ' +
+        'A clause is defined to be a meaningful unit of a sentence that typically contains a subject and a verb phrase. ' +
+        'If this option is provided, maximum number of words per caption is ignored.')
+        .conflicts([ 'sentences' ]))
     .option('-k, --karaoke',
         'Enables Karaoke-style captioning supported by PupCaps.')
     .action((inputFile, options: any) => {
@@ -87,6 +100,8 @@ export function parseArgs(): Args {
         teleprompterFile: opts.teleprompt,
         locale: opts.locale,
         maxWordsPerCaption: opts.length,
+        splitBySentences: opts.sentences,
+        splitByClauses: opts.clauses,
         karaokeEnabled: opts.karaoke,
     };
 }

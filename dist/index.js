@@ -198,6 +198,15 @@ program
     'If not provided, transcription will not be corrected.', assertFileExtension('.txt'))
     .option('-l, --locale <string>', 'Locale that will be used to transcribe the video.', 'en-US')
     .option('-n, --length <number>', 'Maximum number of words per caption.', parseIntAndAssert(assertPositive('Max caption length')), 5)
+    .addOption(new Option('-s, --sentences', 'Split produced text by sentences, instead of defined number of words. ' +
+    'A sentence is defined to be a unit of text that ends with a sentence boundary marker ' +
+    '(period, question mark, exclamation mark). ' +
+    'If this option is provided, maximum number of words per caption is ignored.')
+    .conflicts(['clauses']))
+    .addOption(new Option('-c, --clauses', 'Split produced text by clauses, instead of defined number of words. ' +
+    'A clause is defined to be a meaningful unit of a sentence that typically contains a subject and a verb phrase. ' +
+    'If this option is provided, maximum number of words per caption is ignored.')
+    .conflicts(['sentences']))
     .option('-k, --karaoke', 'Enables Karaoke-style captioning supported by PupCaps.')
     .action((inputFile, options) => {
     const absoluteInputFile = path__namespace.resolve(inputFile);
@@ -223,6 +232,8 @@ function parseArgs() {
         teleprompterFile: opts.teleprompt,
         locale: opts.locale,
         maxWordsPerCaption: opts.length,
+        splitBySentences: opts.sentences,
+        splitByClauses: opts.clauses,
         karaokeEnabled: opts.karaoke,
     };
 }
@@ -319,48 +330,10 @@ async function transcribeFile(audioFile, locale) {
     return result;
 }
 
-function asciiFolding(word) {
-    return word
-        .normalize('NFD') // decomposes the letters and diacritics.
-        .replace(/\p{Diacritic}/gu, ''); // removes all the diacritics.
-}
-function normalizeWord(word) {
-    return asciiFolding(word)
-        .replace(/’/g, "'") // normalize apostrophes
-        .replaceAll(/[^\w']/g, '') // remove all punctuation
-        .toLowerCase();
-}
-function endsWithPunctuation(word) {
-    return !!asciiFolding(word).match(/[^\w']$/);
-}
-function removePunctuation(tokens) {
-    return tokens.filter(token => !token.match(/^[,;.:!?]$/));
-}
-
-function generateCaptions(deepgramWords, maxWordsPerCaption, karaoke = false) {
-    const words = deepgramWords.map(deepgramWordToCaption);
-    const clusters = clusterWords(words, maxWordsPerCaption);
-    return karaoke ? generateKaraoke(clusters) : generateSimple(clusters);
-}
-function clusterWords(words, maxWordsPerCaption) {
-    let clusters = [];
-    let lastWord = null;
-    let lastCluster = null;
-    for (let word of words) {
-        const wordCount = lastCluster?.length || 0;
-        if (word.start === lastWord?.end
-            && wordCount < maxWordsPerCaption
-            && !endsWithPunctuation(lastWord.word)) {
-            lastCluster.push(word);
-        }
-        else {
-            lastCluster = [];
-            lastCluster.push(word);
-            clusters.push(lastCluster);
-        }
-        lastWord = word;
-    }
-    return clusters;
+function generateCaptions(wordsClusters, karaoke = false) {
+    const captions = wordsClusters
+        .map(cluster => cluster.map(deepgramWordToCaption));
+    return karaoke ? generateKaraoke(captions) : generateSimple(captions);
 }
 function generateSimple(clusters) {
     let n = 1;
@@ -415,6 +388,24 @@ function secondsToTimecodes(seconds) {
     const ss = String(wholeSeconds).padStart(2, '0');
     const sss = String(millis).padStart(3, '0');
     return `${hh}:${mm}:${ss},${sss}`;
+}
+
+function asciiFolding(word) {
+    return word
+        .normalize('NFD') // decomposes the letters and diacritics.
+        .replace(/\p{Diacritic}/gu, ''); // removes all the diacritics.
+}
+function normalizeWord(word) {
+    return asciiFolding(word)
+        .replace(/’/g, "'") // normalize apostrophes
+        .replaceAll(/[^\w']/g, '') // remove all punctuation
+        .toLowerCase();
+}
+function endsWithPunctuation(word) {
+    return !!asciiFolding(word).match(/[^\w']$/);
+}
+function removePunctuation(tokens) {
+    return tokens.filter(token => !token.match(/^[,;.:!?]$/));
 }
 
 function compare(transcriptionWord, teleprompterToken) {
@@ -578,6 +569,77 @@ function validateWordsSpans(words) {
     }
 }
 
+class ClausesWordsClusterer {
+    cluster(deepgramWords) {
+        const recognizedText = deepgramWords
+            .map(word => word.punctuated_word)
+            .join(' ');
+        const doc = nlp(recognizedText);
+        const clauses = doc.clauses().out('array');
+        const clusters = [];
+        for (const clause of clauses) {
+            const wordCount = clause.split(' ').length;
+            clusters.push(deepgramWords.splice(0, wordCount));
+        }
+        return clusters;
+    }
+}
+
+class SentencesWordsClusterer {
+    cluster(deepgramWords) {
+        const recognizedText = deepgramWords
+            .map(word => word.punctuated_word)
+            .join(' ');
+        const doc = nlp(recognizedText);
+        const sentences = doc.sentences().out('array');
+        const clusters = [];
+        for (const sentence of sentences) {
+            const wordCount = sentence.split(' ').length;
+            clusters.push(deepgramWords.splice(0, wordCount));
+        }
+        return clusters;
+    }
+}
+
+class MaxLengthWordsClusterer {
+    maxWordsPerCaption;
+    constructor(maxWordsPerCaption) {
+        this.maxWordsPerCaption = maxWordsPerCaption;
+    }
+    cluster(deepgramWords) {
+        let clusters = [];
+        let lastWord = null;
+        let lastCluster = null;
+        for (let word of deepgramWords) {
+            const wordCount = lastCluster?.length || 0;
+            if (word.start === lastWord?.end
+                && wordCount < this.maxWordsPerCaption
+                && !endsWithPunctuation(lastWord.word)) {
+                lastCluster.push(word);
+            }
+            else {
+                lastCluster = [];
+                lastCluster.push(word);
+                clusters.push(lastCluster);
+            }
+            lastWord = word;
+        }
+        return clusters;
+    }
+}
+
+function createWordsClusterer(cliArgs) {
+    if (cliArgs.splitByClauses) {
+        return new ClausesWordsClusterer();
+    }
+    else if (cliArgs.splitBySentences) {
+        return new SentencesWordsClusterer();
+    }
+    else {
+        return new MaxLengthWordsClusterer(cliArgs.maxWordsPerCaption);
+    }
+}
+
 const cliArgs = parseArgs();
 const workDir = new WorkDir(cliArgs.videoInputFile);
 (async () => {
@@ -610,6 +672,7 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
         }
         // Get transcription words
         let transcribedWords = transcription.results.channels[0].alternatives[0].words;
+        // validateWordsSpans(transcribedWords);   // TODO: remove it
         // Correct words
         if (cliArgs.teleprompterFile) {
             console.log(chalk.yellow('Step 5:') + ' ' + chalk.blue('Correcting transcription with the help of teleprompter text file'));
@@ -625,7 +688,9 @@ const workDir = new WorkDir(cliArgs.videoInputFile);
         validateWordsSpans(transcribedWords);
         // Generate captions
         console.log(chalk.yellow('Step 7:') + ' ' + chalk.blue('Generating captions'));
-        const captionsText = generateCaptions(transcribedWords, cliArgs.maxWordsPerCaption, cliArgs.karaokeEnabled);
+        const wordsClusterer = createWordsClusterer(cliArgs);
+        const wordsClusters = wordsClusterer.cluster(transcribedWords);
+        const captionsText = generateCaptions(wordsClusters, cliArgs.karaokeEnabled);
         fs.writeFileSync(cliArgs.srtOutputFile, captionsText);
         console.log(chalk.green('Success:') + ' ' + `Captions written into ${cliArgs.srtOutputFile}`);
     }

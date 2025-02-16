@@ -1,5 +1,4 @@
 import {DeepgramWord} from './transcriber';
-import {endsWithPunctuation} from './nlp';
 
 interface Caption {
     start: string;
@@ -7,34 +6,10 @@ interface Caption {
     word: string;
 }
 
-export function generateCaptions(deepgramWords: DeepgramWord[], maxWordsPerCaption: number, karaoke = false): string {
-    const words = deepgramWords.map(deepgramWordToCaption);
-    const clusters = clusterWords(words, maxWordsPerCaption);
-    return karaoke ? generateKaraoke(clusters) : generateSimple(clusters);
-}
-
-function clusterWords(words: Caption[], maxWordsPerCaption: number): Caption[][] {
-    let clusters: Caption[][] = [];
-    let lastWord: Caption | null = null;
-    let lastCluster: Caption[] | null = null;
-
-    for (let word of words) {
-        const wordCount = lastCluster?.length || 0;
-
-        if (word.start === lastWord?.end
-            && wordCount < maxWordsPerCaption
-            && !endsWithPunctuation(lastWord.word)) {
-            lastCluster!.push(word);
-        } else {
-            lastCluster = [];
-            lastCluster.push(word);
-            clusters.push(lastCluster);
-        }
-
-        lastWord = word;
-    }
-
-    return clusters;
+export function generateCaptions(wordsClusters: DeepgramWord[][], karaoke = false): string {
+    const captions = wordsClusters
+        .map(cluster => cluster.map(deepgramWordToCaption));
+    return karaoke ? generateKaraoke(captions) : generateSimple(captions);
 }
 
 function generateSimple(clusters: Caption[][]): string {
