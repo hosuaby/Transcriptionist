@@ -103,13 +103,15 @@ transcribe path/to/video.mp4 --output path/to/captions.srt --locale fr
 
 ###### Options
 
-| Option           | Default | Description                                                                                                                                                        |
-|------------------|---------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| -o, --output     |         | Full or relative path where the created SubRip Subtitle (.srt) file should be written. By default, it will be saved in the same directory as the input video file. |
-| -t, --teleprompt |         | Full or relative path to teleprompter text (.txt) file. If not provided, transcription will not be corrected.                                                      |
-| -l, --locale     | en-US   | Locale that will be used to transcribe the video.                                                                                                                  |
-| -n, --length     | 5       | Maximum number of words per caption.                                                                                                                               |
-| -k, --karaoke    |         | Enables Karaoke-style captioning supported by PupCaps.                                                                                                             |
+| Option           | Default | Description                                                                                                                                                                                                                                                                       |
+|------------------|---------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| -o, --output     |         | Full or relative path where the created SubRip Subtitle (.srt) file should be written. By default, it will be saved in the same directory as the input video file.                                                                                                                |
+| -t, --teleprompt |         | Full or relative path to teleprompter text (.txt) file. If not provided, transcription will not be corrected.                                                                                                                                                                     |
+| -l, --locale     | en-US   | Locale that will be used to transcribe the video.                                                                                                                                                                                                                                 |
+| -n, --length     | 5       | Maximum number of words per caption.                                                                                                                                                                                                                                              |
+| -s, --sentences  |         | Split produced text by sentences, instead of defined number of words. A sentence is defined to be a unit of text that ends with a sentence boundary marker (period, question mark, exclamation mark). If this option is provided, maximum number of words per caption is ignored. |
+| -c, --clauses    |         | Split produced text by clauses, instead of defined number of words. A clause is defined to be a meaningful unit of a sentence that typically contains a subject and a verb phrase. If this option is provided, maximum number of words per caption is ignored.                    |
+| -k, --karaoke    |         | Enables Karaoke-style captioning supported by PupCaps.                                                                                                                                                                                                                            |
 
 ## Caption Video
 
